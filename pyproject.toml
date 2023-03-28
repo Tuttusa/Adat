@@ -8,7 +8,6 @@ authors = ["PhilippeRacicot <philippe.taharacicot@lacapitale.com>"]
 python = "^3.8"
 pandas = "^1.5.3"
 google-cloud-storage = "^2.7.0"
-tqdm = "^4.65.0"
 
 [tool.poetry.dev-dependencies]
 
