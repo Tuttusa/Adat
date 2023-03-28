@@ -8,7 +8,7 @@ from typing import List
 from google.cloud import storage
 import os
 
-BUCKET_NAME = 'tuttusa_adat'
+BUCKET_NAME = 'adat_tuttusa'
 
 
 @dataclass
