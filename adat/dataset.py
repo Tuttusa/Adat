@@ -2,13 +2,32 @@ import copy
 import pickle
 from dataclasses import dataclass
 from io import BytesIO
-
-import pandas as pd
-from typing import List
+from feature_engine import encoding as ce
+from feature_engine.wrappers import SklearnTransformerWrapper
+from sklearn.preprocessing import StandardScaler
+from feature_engine.imputation import MeanMedianImputer, CategoricalImputer
+from sklearn.pipeline import Pipeline
+from typing import List, Any
 from google.cloud import storage
 import os
+import pandas as pd
 
 BUCKET_NAME = 'adat_tuttusa'
+
+
+class CustomPipeline(Pipeline):
+    def transform(self, X):
+        for name, transform in self.steps[:-1]:
+            X = transform.transform(X)
+        return X
+
+    def inverse_transform(self, X):
+        for name, transform in self.steps[:-1][::-1]:
+            try:
+                X = transform.inverse_transform(X)
+            except:
+                pass
+        return X
 
 
 @dataclass
@@ -21,10 +40,32 @@ class Dataset:
 
     x_cols: List[str]
     t_cols: List[str]
+    y_cols: str
     sample: pd.DataFrame
     cols_to_remove: List[str]
 
     df: pd.DataFrame
+
+    preprocessor: Any = None
+
+    def __post_init__(self):
+        if self.df is not None:
+            self._init_preprocessor()
+
+    def _init_preprocessor(self):
+        if self.preprocessor is None:
+            for col in self.categ_cols:
+                self.df[col] = self.df[col].astype('category')
+
+            self.preprocessor = CustomPipeline([
+                ('cat_features',
+                 ce.OrdinalEncoder(variables=self.categ_cols, encoding_method='arbitrary', missing_values='ignore')),
+                ('imputer_cat', CategoricalImputer(variables=self.categ_cols, ignore_format=True)),
+                ('num_features', SklearnTransformerWrapper(StandardScaler(), variables=self.cont_cols)),
+                ('imputer_num', MeanMedianImputer(imputation_method='mean', variables=self.cont_cols)),
+            ])
+
+            self.preprocessor.fit(self.df)
 
     @property
     def all_cols(self):
@@ -61,7 +102,7 @@ class Dataset:
 
     @property
     def df_name(self):
-        return f"{self.name}.df"
+        return f"{self.name}.csv"
 
     def load_df(self) -> None:
         client = storage.Client()
@@ -76,6 +117,29 @@ class Dataset:
 
         # Convert the CSV string to a DataFrame
         self.df = pd.read_csv(BytesIO(csv_string))
+
+    def transform(self, df: pd.DataFrame):
+        if self.preprocessor is not None:
+            return pd.DataFrame(
+                data=self.preprocessor.transform(df),
+                columns=self.categ_cols + self.cont_cols
+            )
+        else:
+            raise Exception("preprocessor not initialized")
+
+    def inverse_transform(self, df: pd.DataFrame):
+        if self.preprocessor is not None:
+            return self.preprocessor.inverse_transform(df)
+        else:
+            raise Exception("preprocessor not initialized")
+
+    @property
+    def categ_encoder_dict(self):
+        return self.preprocessor['cat_features'].encoder_dict_
+
+    @property
+    def rev_categ_encoder_dict(self):
+        return {kd: {v: k for k, v in d.items()} for kd, d in self.categ_encoder_dict.items()}
 
 
 class Datasets:
@@ -165,6 +229,7 @@ class Datasets:
         datac = self._load_dataclass(name)
         if load_df:
             datac.load_df()
+            datac._init_preprocessor()
         return datac
 
     @classmethod

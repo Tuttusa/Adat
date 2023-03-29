@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "adat"
-version = "0.1.0"
+version = "0.2.0"
 description = "datasets for fairness research"
 authors = ["PhilippeRacicot <philippe.taharacicot@lacapitale.com>"]
 
@@ -8,6 +8,8 @@ authors = ["PhilippeRacicot <philippe.taharacicot@lacapitale.com>"]
 python = "^3.8"
 pandas = "^1.5.3"
 google-cloud-storage = "^2.7.0"
+scikit-learn = "^1.2.2"
+feature-engine = "^1.6.0"
 
 [tool.poetry.dev-dependencies]
 
